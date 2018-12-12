@@ -3,11 +3,11 @@ pre, code {
 }
 
 code.highlighter-rouge {
-  font-size: 90%;
-  color: $oc-indigo-9;
-  background-color: $oc-gray-1;
-  padding: .1em .2em;
+  background-color: rgba(27,31,35,.05);
   border-radius: 3px;
+  font-size: 90%;
+  margin: 0;
+  padding: .2em .4em;
 }
 
 pre.highlight {
