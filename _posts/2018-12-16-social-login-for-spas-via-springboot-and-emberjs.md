@@ -49,12 +49,14 @@ On successful login `204 No Content` is returned with appropriate `Set-cookie` h
 }
 ```
 
-Codewise, login and logout API was added via [RestLoginConfigurer](https://github.com/kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/RestLoginConfigurer.java) and [RestLogoutConfigurer](https://github.com/kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/RestLogoutConfigurer.java).
+Codewise, login and logout API was added via [RestLoginConfigurer](https://github.com/kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/RestLoginConfigurer.java) and [RestLogoutConfigurer](https://github.com/kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/RestLogoutConfigurer.java), in [SecurityConfiguration](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/SecurityConfiguration.java#L102-L105):
 
-{% github_sample_ref kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/SecurityConfiguration.java %}
-{% highlight java %}
-{% github_sample kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/SecurityConfiguration.java 101 105 %}
-{% endhighlight java %}
+```java
+// Setup REST login and logout
+http.apply(new RestLoginConfigurer<>(objectMapper))
+    .and()
+    .apply(new RestLogoutConfigurer<>());
+```
 
 `RestLoginConfigurer` adds [RestLoginFilter](https://github.com/kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/security/rest/filters/RestLoginFilter.java) that's similar to `UsernamePasswordAuthenticationFilter` provided by `spring-boot-starter-security` (`spring-security-web` specifically) with a major difference being parsing an input body as JSON. Since `RestLoginFilter` delegates authentication to underlying authentication manager, a `userDetailsService` and `passwordEncoder` need to be set when configuring `AuthenticationManagerBuilder`.
 
@@ -64,12 +66,19 @@ As for `RestLogoutConfigurer`, it delegates configuration to `LogoutConfigurer` 
 
 When attempting social login a popup window is opened pointing to either `/oauth2/authorization/{github,facebook,google}` or `/oauth1/authorization/twitter`, since they use different authentication mechanisms. Just before opening new popup window, two handlers are being installed on `window` object, seen [here](https://github.com/kklisura/spring-spa-login/blob/master/frontend/app/utils/auth.js#L50-L51). After finishing OAuth flow, either successfully or not, appropriate page will be rendered, which is handled by the [ExternalLoginController](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/controllers/external/login/ExternalLoginController.java). These end pages will actually call those installed handlers in order to signal parent window that auth process is completed.
 
-The process of configuring OAuth authentication is done by applying [OAuth2Configurer](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/OAuth2Configurer.java) for Github, Facebook and Google or [TwitterLoginConfigurer](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/TwitterLoginConfigurer.java) for Twitter.
+The process of configuring OAuth authentication is done by applying [OAuth2Configurer](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/OAuth2Configurer.java) for Github, Facebook and Google or [TwitterLoginConfigurer](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/configurers/TwitterLoginConfigurer.java) for Twitter in [SecurityConfiguration](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/SecurityConfiguration.java#L107-L115):
 
-{% github_sample_ref kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/SecurityConfiguration.java %}
-{% highlight java %}
-{% github_sample kklisura/spring-spa-login/blob/1a12ef9f48c74aa0afe1ac47d08a23ecc34e9ef0/src/main/java/com/github/kklisura/spring/spa/configuration/SecurityConfiguration.java 106 114 %}
-{% endhighlight java %}
+```java
+// Setup OAuth2 for Facebook, Google, Github
+if (oAuth2AuthorizedClientService != null) {
+  http.apply(new OAuth2Configurer<>(externalAccountService, oAuth2AuthorizedClientService, accountService));
+}
+
+// Setup OAuth1 for Twitter (if the client-is is present)
+if (StringUtils.isNotEmpty(twitterService.getTwitterClientRegistration().getClientId())) {
+  http.apply(new TwitterLoginConfigurer<>(twitterService, externalAccountService));
+}
+```
 
 The `OAuth2Configurer` is pretty simple. It delegates *real* configuration to `OAuth2LoginConfigurer` provided by `spring-boot-starter-security` (`spring-security-config` specifically) and adds [AuthenticationPreserveFilter](https://github.com/kklisura/spring-spa-login/blob/master/src/main/java/com/github/kklisura/spring/spa/configuration/security/filters/AuthenticationPreserveFilter.java), for preserving authentication context. This is used for linking social accounts to an existing (currently logged in) accounts. If the user is already logged, after opening popup window for linking social accounts, the current authentication object is preserved by this filter, so on the success handler (after OAuth flow) the previous authentication context will be restored and the associated account will be used to link to an external account.
 
